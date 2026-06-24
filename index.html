@@ -6,7 +6,7 @@
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
-  <meta name="cards-version" content="1782314653">
+  <meta name="cards-version" content="1782343755">
   <title>化学暗記カード - moe-science</title>
   <!-- KaTeX CDN -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css">
@@ -646,6 +646,7 @@
         <p id="doneStats" style="color: var(--text-sub); margin-bottom: 1.5rem; font-size: 1.1rem;"></p>
         <p id="doneMessage" style="color: var(--text-sub); margin-bottom: 2rem; font-size: 0.95rem; line-height: 1.6;"></p>
         <button id="restartTodayBtn" class="btn" style="max-width: 250px; margin: 0 auto;">もう一度学習する</button>
+        <button id="nextSectionBtn" class="btn hidden" style="max-width: 250px; margin: 1rem auto 0;"></button>
       </div>
     </div>
 
@@ -874,6 +875,89 @@
       }
     }
 
+    // ── Next Section Transition Helpers ──
+    function getNextSection() {
+      const sectionsOrder = [];
+      const sectionsMap = new Map();
+      cardsData.forEach(card => {
+        const secKey = `${card.chapter}::${card.sub_chapter}::${card.section}`;
+        if (!sectionsMap.has(secKey)) {
+          sectionsMap.set(secKey, {
+            chapter: card.chapter,
+            sub_chapter: card.sub_chapter,
+            section: card.section,
+            cards: []
+          });
+          sectionsOrder.push(secKey);
+        }
+        sectionsMap.get(secKey).cards.push(card);
+      });
+
+      let maxIdx = -1;
+      if (cardQueue && cardQueue.length > 0) {
+        cardQueue.forEach(card => {
+          const secKey = `${card.chapter}::${card.sub_chapter}::${card.section}`;
+          const idx = sectionsOrder.indexOf(secKey);
+          if (idx > maxIdx) {
+            maxIdx = idx;
+          }
+        });
+      }
+
+      if (maxIdx === -1) {
+        for (let i = 0; i < sectionsOrder.length; i++) {
+          const secKey = sectionsOrder[i];
+          const sec = sectionsMap.get(secKey);
+          const hasNew = sec.cards.some(card => {
+            const prog = allProgress[card.id];
+            return !prog || prog.status === 'new';
+          });
+          if (hasNew) {
+            return secKey;
+          }
+        }
+        return null;
+      }
+
+      if (maxIdx + 1 < sectionsOrder.length) {
+        return sectionsOrder[maxIdx + 1];
+      }
+      return null;
+    }
+
+    function startNextSection(nextSecKey) {
+      clearSessionState();
+      
+      const [ch, sub, sec] = nextSecKey.split('::');
+      const targetCards = cardsData.filter(card => 
+        card.chapter === ch &&
+        card.sub_chapter === sub &&
+        card.section === sec
+      );
+      
+      if (targetCards.length === 0) {
+        showToast('セクション内にカードが見つかりません。');
+        return;
+      }
+
+      isReviewSession = false;
+      sessionErrors.clear();
+      sessionStats = { known: 0, unknown: 0 };
+      
+      cardQueue = [...targetCards];
+      cardQueue.forEach(c => c.session_done = false); // Initialize
+      cardIndex = 0;
+      sessionUniqueCount = cardQueue.length;
+      sessionClearedIds = new Set();
+      activeSections = [nextSecKey];
+
+      saveSessionState();
+      
+      switchTab('card');
+      showView('studyView');
+      renderCard();
+    }
+
     // ── Session Flow ─────────────────────────────────────────────────────────
     function startSession() {
       // 状態の復元を試みる
@@ -953,11 +1037,27 @@
         document.getElementById('doneTitle').textContent = '🎉 今日の学習完了！';
         document.getElementById('doneStats').textContent = '今日の学習カードはありません。';
         document.getElementById('doneMessage').textContent = 'すべてのカードが最新の状態です。進捗タブからセクションごとの臨時学習を行うこともできます。';
+        
         document.getElementById('restartTodayBtn').classList.remove('hidden');
         document.getElementById('restartTodayBtn').onclick = () => {
           clearSessionState(); // キャッシュを破棄して再ロード
           startSession();
         };
+
+        // 次のセクションへの遷移ボタンの設定
+        const nextSecKey = getNextSection();
+        const nextBtn = document.getElementById('nextSectionBtn');
+        if (nextSecKey) {
+          const [chapter, subChapter, sectionName] = nextSecKey.split('::');
+          nextBtn.textContent = `次の節「${sectionName}」へ進む`;
+          nextBtn.classList.remove('hidden');
+          nextBtn.onclick = () => {
+            startNextSection(nextSecKey);
+          };
+        } else {
+          nextBtn.classList.add('hidden');
+        }
+
         switchTab('card');
         return;
       }
@@ -1282,6 +1382,7 @@
       const doneStats = document.getElementById('doneStats');
       const doneMessage = document.getElementById('doneMessage');
       const restartBtn = document.getElementById('restartTodayBtn');
+      const nextBtn = document.getElementById('nextSectionBtn');
 
       if (retryCards.length > 0) {
         // Retry round needed
@@ -1292,6 +1393,7 @@
         doneStats.textContent = `知ってた: ${knownCount}枚 / 知らなかった: ${unknownCount}枚`;
         doneMessage.textContent = '🔁 知らなかったカードを自動で復習します…';
         restartBtn.classList.add('hidden');
+        nextBtn.classList.add('hidden');
 
         // Setup the next loop round
         isReviewSession = true;
@@ -1319,6 +1421,19 @@
           clearSessionState();
           startSession();
         };
+
+        // 次のセクションへの遷移ボタンの設定
+        const nextSecKey = getNextSection();
+        if (nextSecKey) {
+          const [chapter, subChapter, sectionName] = nextSecKey.split('::');
+          nextBtn.textContent = `次の節「${sectionName}」へ進む`;
+          nextBtn.classList.remove('hidden');
+          nextBtn.onclick = () => {
+            startNextSection(nextSecKey);
+          };
+        } else {
+          nextBtn.classList.add('hidden');
+        }
 
         // Cleanup session state upon successful completion
         isReviewSession = false;
