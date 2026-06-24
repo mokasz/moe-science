@@ -1,0 +1,1708 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+  <meta name="cards-version" content="1782312947">
+  <title>化学暗記カード - moe-science</title>
+  <!-- KaTeX CDN -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css">
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/contrib/auto-render.min.js"></script>
+  <!-- Marked (Markdown Parser) CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <!-- Supabase JS Client CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    :root {
+      /* 配色を moe-vocab と完全に同一化 */
+      --bg-main: #0f0f13;
+      --bg-card: #1a1a24;
+      --bg-input: #22222f;
+      --border-color: #2e2e40;
+      --text-main: #e8e8f0;
+      --text-sub: #8888aa;
+      --primary: #6c8ef7;
+      --primary-hover: #5b7be3;
+      --color-known: #4caf82;
+      --color-known-hover: #3e966e;
+      --color-unknown: #e05c5c;
+      --color-unknown-hover: #c94f4f;
+      
+      --font-base: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg-main);
+      color: var(--text-main);
+      font-family: var(--font-base);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 2rem 1rem;
+      overflow-x: hidden;
+    }
+
+    header {
+      width: 100%;
+      max-width: 600px;
+      margin-bottom: 2rem;
+      text-align: center;
+    }
+
+    h1 {
+      font-size: 2rem;
+      font-weight: 700;
+      color: var(--text-main);
+      margin-bottom: 0.5rem;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 650px; /* テーブル幅の確保のために少し拡張 */
+      background-color: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      padding: 2rem;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    }
+
+    /* Auth & Loading */
+    .hidden { display: none !important; }
+    
+    .loading-spinner {
+      border: 4px solid rgba(255, 255, 255, 0.1);
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      border-left-color: var(--primary);
+      animation: spin 1s linear infinite;
+      margin: 2rem auto;
+    }
+
+    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+    .btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      padding: 0.85rem 1.5rem;
+      background-color: var(--primary);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.15s;
+      text-align: center;
+      margin-top: 1rem;
+    }
+
+    .btn:hover { opacity: 0.85; }
+
+    /* Dashboard */
+    .dashboard-stats {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .stat-card {
+      background-color: var(--bg-input);
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+      padding: 1rem;
+      text-align: center;
+    }
+
+    .stat-val { font-size: 1.5rem; font-weight: 700; color: var(--primary); }
+    .stat-lbl { font-size: 0.75rem; color: var(--text-sub); margin-top: 0.25rem; }
+
+    .filter-section {
+      background-color: var(--bg-input);
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+      padding: 1.25rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .filter-title { font-size: 0.9rem; font-weight: 600; color: var(--text-main); margin-bottom: 0.75rem; }
+    
+    .checkbox-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+      gap: 0.75rem;
+    }
+
+    .check-lbl {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.85rem;
+      cursor: pointer;
+      color: var(--text-sub);
+    }
+    
+    .check-lbl input { accent-color: var(--primary); }
+
+    /* Card Stage */
+    .card-meta {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.8rem;
+      color: var(--text-sub);
+      margin-bottom: 1.5rem;
+      border-bottom: 1px solid var(--border-color);
+      padding-bottom: 0.75rem;
+    }
+
+    .card-body {
+      font-size: 1.1rem;
+      line-height: 1.7;
+      min-height: 180px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+
+    /* Markdown Table and List Styling */
+    .markdown-content table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 1.5rem 0;
+      font-size: 0.85rem; /* テーブルは少し小さめに */
+    }
+    
+    .markdown-content th, .markdown-content td {
+      border: 1px solid var(--border-color);
+      padding: 0.5rem;
+      text-align: center;
+    }
+    
+    .markdown-content th {
+      background-color: var(--bg-input);
+      color: var(--text-main);
+      font-weight: 600;
+    }
+
+    .markdown-content ul, .markdown-content ol {
+      margin-left: 1.5rem;
+      margin-bottom: 1rem;
+      list-style-position: outside;
+    }
+
+    .markdown-content li {
+      margin-bottom: 0.25rem;
+    }
+
+    /* Cloze styling */
+    .cloze-blank {
+      display: inline-block;
+      background-color: var(--bg-input);
+      border-bottom: 2px solid var(--primary);
+      color: transparent !important; /* 完全に隠す */
+      padding: 0 0.5rem;
+      margin: 0 0.25rem;
+      border-radius: 4px;
+      cursor: pointer;
+      user-select: none;
+      transition: background-color 0.2s, color 0.2s;
+    }
+    
+    .cloze-blank.revealed {
+      background-color: transparent;
+      border-bottom-color: var(--border-color);
+      color: var(--text-main) !important;
+      font-weight: 600;
+      user-select: text;
+    }
+
+    /* Q&A / Image Occlusion view */
+    .answer-block {
+      border-top: 1px dashed var(--border-color);
+      margin-top: 1.5rem;
+      padding-top: 1.5rem;
+      animation: fadeIn 0.3s ease forwards;
+    }
+
+    .answer-block table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 1rem 0;
+      font-size: 0.85rem;
+    }
+    
+    .answer-block th, .answer-block td {
+      border: 1px solid var(--border-color);
+      padding: 0.5rem;
+      text-align: center;
+    }
+    
+    .answer-block th {
+      background-color: var(--bg-input);
+    }
+
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+
+    /* Image Occlusion container */
+    .occlusion-container {
+      position: relative;
+      width: 100%;
+      margin: 1.5rem 0;
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      overflow: hidden;
+      background-color: #000;
+    }
+
+    .occlusion-image {
+      display: block;
+      width: 100%;
+      height: auto;
+    }
+
+    .occlusion-mask {
+      position: absolute;
+      background-color: rgb(224, 92, 92); /* 完全に不透明に修正 */
+      border: 1.5px solid rgba(224, 92, 92, 0.9);
+      border-radius: 3px;
+      cursor: pointer;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.5);
+      transition: all 0.2s ease;
+    }
+    
+    .occlusion-mask:hover {
+      background-color: rgb(240, 110, 110); /* ホバー時は少し明るい赤（不透明） */
+    }
+
+    .occlusion-mask.revealed {
+      background-color: transparent !important;
+      border-color: rgba(76, 175, 130, 0.7); /* 緑の枠線 */
+      box-shadow: none;
+      pointer-events: none;
+    }
+
+    /* Action Panel */
+    .action-panel {
+      display: flex;
+      gap: 1rem;
+      margin-top: 2rem;
+    }
+
+    .btn-action {
+      flex: 1;
+      padding: 1rem;
+      border: none;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: opacity 0.15s;
+      color: white;
+    }
+
+    .btn-action:hover {
+      opacity: 0.85;
+    }
+
+    .btn-unknown { background-color: var(--color-unknown); }
+    .btn-known { background-color: var(--color-known); }
+    .btn-show { background-color: var(--primary); }
+
+    .toast {
+      position: fixed;
+      bottom: 2rem;
+      background-color: var(--primary);
+      color: white;
+      padding: 0.75rem 1.5rem;
+      border-radius: 2rem;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+      font-weight: 600;
+      font-size: 0.9rem;
+      animation: fadeInUp 0.3s ease;
+      z-index: 1000;
+    }
+
+    @keyframes fadeInUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+    /* ── Tab Bar Styles ── */
+    .tab-bar {
+      display: flex;
+      border-bottom: 1px solid var(--border-color);
+      margin-bottom: 1.5rem;
+      width: 100%;
+    }
+
+    .tab {
+      flex: 1;
+      padding: 0.75rem 0.5rem;
+      text-align: center;
+      font-size: 0.9rem;
+      color: var(--text-sub);
+      cursor: pointer;
+      border: none;
+      background: transparent;
+      border-bottom: 2px solid transparent;
+      transition: color 0.15s, border-color 0.15s;
+      user-select: none;
+      font-weight: 600;
+    }
+
+    .tab.active {
+      color: var(--primary);
+      border-bottom-color: var(--primary);
+    }
+
+    .tab:hover:not(.active) {
+      color: var(--text-main);
+    }
+
+    /* ── Progress Tab Styles ── */
+    .toc-container {
+      background-color: var(--bg-input);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin-bottom: 2rem;
+    }
+
+    .toc-title {
+      font-size: 1.1rem;
+      font-weight: 700;
+      margin-bottom: 1rem;
+      border-bottom: 1px solid var(--border-color);
+      padding-bottom: 0.5rem;
+    }
+
+    .toc-chapter {
+      margin-bottom: 1.5rem;
+    }
+
+    .toc-chapter-title {
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--text-main);
+      margin-bottom: 0.75rem;
+    }
+
+    .toc-subchapter {
+      margin-left: 1rem;
+      margin-bottom: 1rem;
+    }
+
+    .toc-subchapter-title {
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: var(--text-sub);
+      margin-bottom: 0.5rem;
+    }
+
+    .toc-section-list {
+      margin-left: 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .toc-section-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      padding: 0.5rem;
+      border-radius: 6px;
+      background-color: rgba(255,255,255,0.02);
+      transition: background-color 0.2s;
+    }
+
+    .toc-section-item:hover {
+      background-color: rgba(255,255,255,0.05);
+    }
+
+    .toc-section-link {
+      font-size: 0.85rem;
+      font-weight: 500;
+      color: var(--primary);
+      cursor: pointer;
+      text-decoration: none;
+      flex: 1;
+    }
+
+    .toc-section-link:hover {
+      text-decoration: underline;
+    }
+
+    .toc-section-right {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      flex-shrink: 0;
+    }
+
+    .toc-progress-box {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      width: 120px;
+    }
+
+    .toc-progress-bar {
+      flex: 1;
+      height: 6px;
+      background-color: var(--border-color);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+
+    .toc-progress-fill {
+      height: 100%;
+      background-color: var(--color-known);
+      border-radius: 3px;
+    }
+
+    .toc-progress-pct {
+      font-size: 0.75rem;
+      color: var(--text-sub);
+      width: 30px;
+      text-align: right;
+    }
+
+    .btn-study-section {
+      background-color: var(--primary);
+      color: white;
+      border: none;
+      border-radius: 4px;
+      padding: 0.25rem 0.5rem;
+      font-size: 0.75rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.15s;
+    }
+
+    .btn-study-section:hover {
+      opacity: 0.85;
+    }
+
+    /* 詳細リストのスタイル */
+    .details-container {
+      margin-top: 2rem;
+    }
+
+    .details-title {
+      font-size: 1.1rem;
+      font-weight: 700;
+      margin-bottom: 1rem;
+      border-bottom: 1px solid var(--border-color);
+      padding-bottom: 0.5rem;
+    }
+
+    .details-section-group {
+      margin-bottom: 2rem;
+      scroll-margin-top: 20px; /* スクロール時の余白確保 */
+    }
+
+    .details-section-title {
+      font-size: 0.95rem;
+      font-weight: 700;
+      background-color: var(--bg-input);
+      border-left: 4px solid var(--primary);
+      padding: 0.5rem 0.75rem;
+      margin-bottom: 0.75rem;
+      border-radius: 0 6px 6px 0;
+    }
+
+    .card-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      margin-left: 0.5rem;
+    }
+
+    .card-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.6rem 0.75rem;
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      background-color: rgba(26, 26, 36, 0.4);
+    }
+
+    .card-item-left {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .status-dot.new { background-color: var(--text-sub); opacity: 0.5; }
+    .status-dot.active { background-color: var(--color-known); }
+    .status-dot.red { background-color: var(--color-unknown); }
+
+    .card-item-title {
+      font-size: 0.85rem;
+      font-weight: 500;
+      color: var(--text-main);
+    }
+
+    .card-item-page {
+      font-size: 0.75rem;
+      color: var(--text-sub);
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>化学暗記カード</h1>
+    <p style="color: var(--text-sub); font-size: 0.9rem;">moe-science</p>
+  </header>
+
+  <div class="container">
+    <!-- Tab Bar -->
+    <div id="tabBar" class="tab-bar hidden">
+      <button class="tab active" data-tab="card" onclick="switchTab('card')">カード学習</button>
+      <button class="tab" data-tab="progress" onclick="switchTab('progress')">進捗</button>
+    </div>
+
+    <!-- loading -->
+    <div id="loadingView" class="hidden">
+      <div class="loading-spinner"></div>
+      <p style="text-align:center; color: var(--text-sub);">ロード中...</p>
+    </div>
+
+    <!-- Login -->
+    <div id="loginView" class="hidden">
+      <p style="text-align:center; margin-bottom:1.5rem; color: var(--text-sub);">学習を開始するにはログインしてください。</p>
+      <button id="loginBtn" class="btn">Google でログイン</button>
+    </div>
+
+    <!-- Done View -->
+    <div id="doneView" class="hidden">
+      <div class="done-screen" style="text-align: center; padding: 2rem 1rem;">
+        <h2 id="doneTitle" style="font-size: 1.8rem; margin-bottom: 1rem;">🎉 今日の学習完了！</h2>
+        <p id="doneStats" style="color: var(--text-sub); margin-bottom: 1.5rem; font-size: 1.1rem;"></p>
+        <p id="doneMessage" style="color: var(--text-sub); margin-bottom: 2rem; font-size: 0.95rem; line-height: 1.6;"></p>
+        <button id="restartTodayBtn" class="btn" style="max-width: 250px; margin: 0 auto;">もう一度学習する</button>
+      </div>
+    </div>
+
+    <!-- Study Stage -->
+    <div id="studyView" class="hidden">
+      <div class="card-meta" style="flex-wrap: wrap; gap: 0.5rem;">
+        <div style="display: flex; flex-wrap: wrap; gap: 0.25rem; align-items: center; max-width: 80%;">
+          <span id="cardPage">p.100</span> | 
+          <span id="cardSection" style="color: var(--primary); font-weight: 500;">セクション</span>
+        </div>
+        <div id="cardProgress">1 / 10</div>
+      </div>
+
+      <div id="cardBody" class="card-body">
+        <!-- カードコンテンツはJSで動的挿入 -->
+      </div>
+
+      <!-- 操作ボタンパネル -->
+      <div id="stageActions" class="action-panel">
+        <!-- JSで出し分け -->
+      </div>
+    </div>
+
+    <!-- Progress View -->
+    <div id="progressView" class="hidden">
+      <!-- JSで動的に目次と進捗を描画 -->
+    </div>
+  </div>
+
+  <div id="toast" class="toast hidden"></div>
+
+  <script>
+    // ── Config ──────────────────────────────────────────────────────────────
+    // ローカルで Supabase エミュレーターを起動していない場合でも動作するよう、
+    // 常に本番の Supabase に直接接続させて Google 認証を通します。
+    const SUPA_URL = 'https://uzpmpjkkwapaohleejtt.supabase.co';
+    const SUPA_KEY = 'sb_publishable_YCsV4Wpn8tb8gwLrgsPf2g_xAX0Q4gt';
+    
+    const BOOK_KEY = 'moe-science';
+    const PENDING_KEY = BOOK_KEY + '_sync_pending';
+    const REVIEW_LOG_KEY = BOOK_KEY + '_review_log_pending';
+
+    const sb = window.supabase.createClient(SUPA_URL, SUPA_KEY);
+    let currentUser = null;
+    let cardsData = []; // すべてのカード構造 (JSON)
+    let cardsVersion = '0';
+    let allProgress = {}; // Supabase/キャッシュから取得した進捗
+    let cardQueue = []; // 今日の学習対象キュー
+    let cardIndex = 0;
+    let isSyncing = false;
+    let currentTab = 'card'; // 'card' or 'progress'
+    let currentSubView = 'studyView'; // 'dashboardView' or 'studyView'
+    let isReviewSession = false;
+    let sessionErrors = new Set();
+    let sessionStats = { known: 0, unknown: 0 };
+    let sessionUniqueCount = 0;
+    let sessionClearedIds = new Set();
+    let activeSections = []; // Active section keys in queue: ["Chapter::SubChapter::Section"]
+
+    // ── Session Storage State Persistence ──
+    const SS_PREFIX = 'moe_sci_';
+    const SS_DATE_KEY = SS_PREFIX + 'session_date';
+    const SS_QUEUE_KEY = SS_PREFIX + 'session_queue';
+    const SS_IDX_KEY = SS_PREFIX + 'session_idx';
+    const SS_REVIEW_KEY = SS_PREFIX + 'session_review';
+    const SS_ERRORS_KEY = SS_PREFIX + 'session_errors';
+    const SS_STATS_KEY = SS_PREFIX + 'session_stats';
+    const SS_UNIQ_KEY = SS_PREFIX + 'session_uniq';
+    const SS_CLEARED_KEY = SS_PREFIX + 'session_cleared';
+    const SS_ACTIVE_SECS_KEY = SS_PREFIX + 'active_sections';
+
+    function saveSessionState() {
+      if (!currentUser) return;
+      const today = new Date().toISOString().split('T')[0];
+      sessionStorage.setItem(SS_DATE_KEY, today);
+      sessionStorage.setItem(SS_QUEUE_KEY, JSON.stringify(cardQueue.map(c => c.id)));
+      sessionStorage.setItem(SS_IDX_KEY, cardIndex.toString());
+      sessionStorage.setItem(SS_REVIEW_KEY, isReviewSession ? 'true' : 'false');
+      sessionStorage.setItem(SS_ERRORS_KEY, JSON.stringify(Array.from(sessionErrors).map(c => c.id)));
+      sessionStorage.setItem(SS_STATS_KEY, JSON.stringify(sessionStats));
+      sessionStorage.setItem(SS_UNIQ_KEY, sessionUniqueCount.toString());
+      sessionStorage.setItem(SS_CLEARED_KEY, JSON.stringify(Array.from(sessionClearedIds)));
+      sessionStorage.setItem(SS_ACTIVE_SECS_KEY, JSON.stringify(activeSections));
+    }
+
+    function loadSessionState() {
+      if (!currentUser) return false;
+      const today = new Date().toISOString().split('T')[0];
+      const savedDate = sessionStorage.getItem(SS_DATE_KEY);
+      
+      if (savedDate === today) {
+        const savedQueueIds = JSON.parse(sessionStorage.getItem(SS_QUEUE_KEY) || '[]');
+        const savedIdx = parseInt(sessionStorage.getItem(SS_IDX_KEY) || '0', 10);
+        const savedReview = sessionStorage.getItem(SS_REVIEW_KEY) === 'true';
+        const savedErrorIds = JSON.parse(sessionStorage.getItem(SS_ERRORS_KEY) || '[]');
+        const savedStats = JSON.parse(sessionStorage.getItem(SS_STATS_KEY) || '{"known":0,"unknown":0}');
+        const savedUniq = parseInt(sessionStorage.getItem(SS_UNIQ_KEY) || '0', 10);
+        const savedCleared = JSON.parse(sessionStorage.getItem(SS_CLEARED_KEY) || '[]');
+        const savedActiveSecs = JSON.parse(sessionStorage.getItem(SS_ACTIVE_SECS_KEY) || '[]');
+        
+        if (savedQueueIds.length > 0) {
+          cardQueue = savedQueueIds.map(id => cardsData.find(c => c.id === id)).filter(Boolean);
+          cardIndex = savedIdx;
+          isReviewSession = savedReview;
+          sessionErrors = new Set(savedErrorIds.map(id => cardsData.find(c => c.id === id)).filter(Boolean));
+          sessionStats = savedStats;
+          sessionUniqueCount = savedUniq;
+          sessionClearedIds = new Set(savedCleared);
+          activeSections = savedActiveSecs;
+
+          // Restore session_done flag on card objects
+          cardQueue.forEach(c => {
+            c.session_done = sessionClearedIds.has(c.id);
+          });
+          return true;
+        }
+      }
+      return false;
+    }
+
+    function clearSessionState() {
+      sessionStorage.removeItem(SS_DATE_KEY);
+      sessionStorage.removeItem(SS_QUEUE_KEY);
+      sessionStorage.removeItem(SS_IDX_KEY);
+      sessionStorage.removeItem(SS_REVIEW_KEY);
+      sessionStorage.removeItem(SS_ERRORS_KEY);
+      sessionStorage.removeItem(SS_STATS_KEY);
+      sessionStorage.removeItem(SS_UNIQ_KEY);
+      sessionStorage.removeItem(SS_CLEARED_KEY);
+      sessionStorage.removeItem(SS_ACTIVE_SECS_KEY);
+    }
+
+    // ── Bootstrapping ────────────────────────────────────────────────────────
+    window.addEventListener('DOMContentLoaded', async () => {
+      showView('loadingView');
+      
+      // Marked Parser Options
+      if (window.marked && window.marked.setOptions) {
+        marked.setOptions({ breaks: true });
+      }
+      
+      // Load static cards JSON
+      try {
+        const vMeta = document.querySelector('meta[name="cards-version"]')?.content || '0';
+        cardsVersion = vMeta;
+        const res = await fetch('data/chemistry_cards.json?v=' + cardsVersion, { cache: 'no-store' });
+        cardsData = await res.json();
+      } catch (e) {
+        console.error('Failed to load chemistry_cards.json', e);
+        showToast('データの読み込みに失敗しました。');
+        return;
+      }
+
+      // Check Session Auth
+      const { data: { session } } = await sb.auth.getSession();
+      if (session) {
+        currentUser = session.user;
+        await initializeApp();
+      } else {
+        showView('loginView');
+      }
+
+      // Listen Auth state changes
+      sb.auth.onAuthStateChange(async (event, session) => {
+        if (session) {
+          currentUser = session.user;
+          await initializeApp();
+        } else {
+          currentUser = null;
+          showView('loginView');
+        }
+      });
+
+      document.getElementById('loginBtn').onclick = () => sb.auth.signInWithOAuth({
+        provider: 'google',
+        options: { redirectTo: window.location.href }
+      });
+      
+      // Setup Keyboard Shortcuts
+      window.addEventListener('keydown', handleKeyboardShortcuts);
+    });
+
+    async function initializeApp() {
+      showView('loadingView');
+      await fetchAllProgress();
+      startSession();
+      flushPending(); // 未送信のキャッシュがあれば自動送信
+    }
+
+    // ── Data Handling ────────────────────────────────────────────────────────
+    async function fetchAllProgress() {
+      if (!currentUser) return;
+      try {
+        const { data, error } = await sb
+          .from('progress_sync')
+          .select('word_key,status,ease_factor,interval_days,repetitions,next_review,last_studied')
+          .eq('book_key', BOOK_KEY)
+          .eq('user_id', currentUser.id);
+
+        if (error) throw error;
+        
+        allProgress = {};
+        (data || []).forEach(row => {
+          allProgress[row.word_key] = row;
+        });
+
+        // 未送信のローカルキャッシュがあればマージして最新状態を維持
+        const pending = JSON.parse(localStorage.getItem(PENDING_KEY) || '{}');
+        Object.keys(pending).forEach(k => {
+          allProgress[k] = { ...allProgress[k], ...pending[k] };
+        });
+      } catch (e) {
+        console.warn('Failed to load progress from Supabase, loading from localStorage fallback', e);
+        // Fallback to local storage
+        const pending = JSON.parse(localStorage.getItem(PENDING_KEY) || '{}');
+        Object.keys(pending).forEach(k => {
+          allProgress[k] = pending[k];
+        });
+      }
+    }
+
+    // ── Session Flow ─────────────────────────────────────────────────────────
+    function startSession() {
+      // 状態の復元を試みる
+      if (loadSessionState()) {
+        switchTab('card');
+        if (cardIndex >= cardQueue.length) {
+          finishSession(); // すでにセッション完了済みの場合は完了画面
+        } else {
+          showView('studyView');
+          renderCard();
+        }
+        return;
+      }
+
+      const today = new Date().toISOString().split('T')[0];
+
+      isReviewSession = false;
+      sessionErrors.clear();
+      sessionStats = { known: 0, unknown: 0 };
+
+      // 1. 全カードをセクションごとにグループ化（元の順序を維持）
+      const sectionsMap = new Map();
+      const sectionsOrder = [];
+
+      cardsData.forEach(card => {
+        const secKey = `${card.chapter}::${card.sub_chapter}::${card.section}`;
+        if (!sectionsMap.has(secKey)) {
+          sectionsMap.set(secKey, {
+            chapter: card.chapter,
+            sub_chapter: card.sub_chapter,
+            section: card.section,
+            cards: []
+          });
+          sectionsOrder.push(secKey);
+        }
+        sectionsMap.get(secKey).cards.push(card);
+      });
+
+      // 2. 復習待ちカードの選定（セクション順・ページ順を維持）
+      let dueCards = [];
+      sectionsOrder.forEach(secKey => {
+        const sec = sectionsMap.get(secKey);
+        const secDueCards = sec.cards.filter(card => {
+          const prog = allProgress[card.id];
+          return prog && prog.status !== 'new' && prog.next_review <= today;
+        });
+        dueCards = [...dueCards, ...secDueCards];
+      });
+
+      // 3. 新規に学習を開始するセクションの選定（1日に新規追加するテーマは最大1セクション）
+      let newCards = [];
+
+      for (const secKey of sectionsOrder) {
+        const sec = sectionsMap.get(secKey);
+        const secNewCards = sec.cards.filter(card => {
+          const prog = allProgress[card.id];
+          return !prog || prog.status === 'new';
+        });
+
+        if (secNewCards.length > 0) {
+          // 未学習がある最初のセクションを丸ごと新規追加して終了（テーマの混ざりを防ぐ）
+          newCards = [...secNewCards];
+          break;
+        }
+      }
+
+      cardQueue = [...dueCards, ...newCards];
+      cardQueue.forEach(c => c.session_done = false); // Initialize
+      cardIndex = 0;
+      sessionUniqueCount = new Set(cardQueue.map(c => c.id)).size;
+      sessionClearedIds = new Set();
+
+      saveSessionState(); // キャッシュに保存
+
+      if (cardQueue.length === 0) {
+        showView('doneView');
+        document.getElementById('doneTitle').textContent = '🎉 今日の学習完了！';
+        document.getElementById('doneStats').textContent = '今日の学習カードはありません。';
+        document.getElementById('doneMessage').textContent = 'すべてのカードが最新の状態です。進捗タブからセクションごとの臨時学習を行うこともできます。';
+        document.getElementById('restartTodayBtn').classList.remove('hidden');
+        document.getElementById('restartTodayBtn').onclick = () => {
+          clearSessionState(); // キャッシュを破棄して再ロード
+          startSession();
+        };
+        switchTab('card');
+        return;
+      }
+
+      switchTab('card');
+      showView('studyView');
+      renderCard();
+    }
+
+    function renderCard() {
+      if (cardIndex >= cardQueue.length) {
+        finishSession();
+        return;
+      }
+
+      const card = cardQueue[cardIndex];
+      
+      document.getElementById('cardPage').textContent = `p.${card.page}`;
+      document.getElementById('cardSection').textContent = card.section || '';
+      
+      // Simplify progress output
+      document.getElementById('cardProgress').textContent = `${cardIndex + 1} / ${cardQueue.length}`;
+
+      const cardBody = document.getElementById('cardBody');
+      cardBody.innerHTML = '';
+
+      if (card.type === 'cloze') {
+        const textDiv = document.createElement('div');
+        textDiv.className = 'markdown-content';
+        
+        // 1. マークダウンを HTML に変換 (marked.js)
+        let rawHtml = '';
+        if (window.marked && window.marked.parse) {
+          rawHtml = window.marked.parse(card.cloze_text || '');
+        } else {
+          rawHtml = (card.cloze_text || '').replace(/\n/g, '<br>');
+        }
+        
+        // 2. [ ] を穴埋め要素に置換する処理
+        let index = 0;
+        const replaced = rawHtml.replace(/\[\s*(.+?)\s*\]/g, (match, word) => {
+          const id = `cloze-b-${index++}`;
+          return `<span id="${id}" class="cloze-blank" onclick="revealCloze('${id}')">${word}</span>`;
+        });
+
+        textDiv.innerHTML = replaced;
+        cardBody.appendChild(textDiv);
+        
+        // 数式のレンダリング
+        if (window.renderMathInElement) {
+          renderMathInElement(textDiv, {
+            delimiters: [
+              { left: '$$', right: '$$', display: true },
+              { left: '$', right: '$', display: false }
+            ]
+          });
+        }
+        setupActions('cloze_question');
+
+      } else if (card.type === 'qa') {
+        const qDiv = document.createElement('div');
+        
+        // 問いもマークダウンパースする
+        let qHtml = '';
+        if (window.marked && window.marked.parse) {
+          qHtml = window.marked.parse(card.question || '');
+        } else {
+          qHtml = `<p style="font-weight: 600;">${card.question}</p>`;
+        }
+        
+        qDiv.innerHTML = qHtml;
+        cardBody.appendChild(qDiv);
+
+        if (window.renderMathInElement) {
+          renderMathInElement(qDiv, {
+            delimiters: [
+              { left: '$$', right: '$$', display: true },
+              { left: '$', right: '$', display: false }
+            ]
+          });
+        }
+        setupActions('qa_question');
+
+      } else if (card.type === 'image_occlusion') {
+        const titleP = document.createElement('p');
+        titleP.style.fontWeight = '600';
+        titleP.style.marginBottom = '1rem';
+        titleP.textContent = card.title;
+        cardBody.appendChild(titleP);
+
+        const container = document.createElement('div');
+        container.className = 'occlusion-container';
+        
+        const img = document.createElement('img');
+        img.className = 'occlusion-image';
+        img.src = card.image + '?v=' + cardsVersion;
+        container.appendChild(img);
+
+        // マスクを配置
+        (card.masks || []).forEach(mask => {
+          const mEl = document.createElement('div');
+          mEl.className = 'occlusion-mask';
+          mEl.style.left = `${mask.x}%`;
+          mEl.style.top = `${mask.y}%`;
+          mEl.style.width = `${mask.w}%`;
+          mEl.style.height = `${mask.h}%`;
+          mEl.title = mask.label;
+          mEl.onclick = () => { mEl.classList.add('revealed'); };
+          container.appendChild(mEl);
+        });
+
+        cardBody.appendChild(container);
+        setupActions('cloze_question');
+      }
+    }
+
+    function revealCloze(id) {
+      const el = document.getElementById(id);
+      if (el) el.classList.add('revealed');
+    }
+
+    // すべての Cloze と画像マスクを開ける
+    function revealAllCloze() {
+      document.querySelectorAll('.cloze-blank').forEach(el => el.classList.add('revealed'));
+      document.querySelectorAll('.occlusion-mask').forEach(el => el.classList.add('revealed'));
+      setupActions('cloze_answer');
+    }
+
+    function revealQAAnswer() {
+      const card = cardQueue[cardIndex];
+      const cardBody = document.getElementById('cardBody');
+
+      const ansDiv = document.createElement('div');
+      ansDiv.className = 'answer-block';
+
+      // 答えもマークダウンパース
+      let ansHtml = '';
+      if (window.marked && window.marked.parse) {
+        ansHtml = window.marked.parse(card.answer || '');
+      } else {
+        ansHtml = `<p>${card.answer.replace(/\n/g, '<br>')}</p>`;
+      }
+      ansDiv.innerHTML = ansHtml;
+
+      if (card.image) {
+        const img = document.createElement('img');
+        img.src = card.image + '?v=' + cardsVersion;
+        img.style.width = '100%';
+        img.style.maxWidth = card.image_width || '100%';
+        img.style.height = 'auto';
+        img.style.marginTop = '1rem';
+        img.style.borderRadius = '8px';
+        img.style.border = '1px solid var(--border-color)';
+        ansDiv.appendChild(img);
+      }
+
+      cardBody.appendChild(ansDiv);
+      
+      if (window.renderMathInElement) {
+        renderMathInElement(ansDiv, {
+          delimiters: [
+            { left: '$$', right: '$$', display: true },
+            { left: '$', right: '$', display: false }
+          ]
+        });
+      }
+
+      setupActions('qa_answer');
+    }
+
+    function setupActions(state) {
+      const actions = document.getElementById('stageActions');
+      actions.innerHTML = '';
+
+      if (state === 'cloze_question') {
+        const btn = document.createElement('button');
+        btn.className = 'btn-action btn-show';
+        btn.textContent = '正解を表示 (Space)';
+        btn.onclick = revealAllCloze;
+        actions.appendChild(btn);
+      } else if (state === 'qa_question') {
+        const btn = document.createElement('button');
+        btn.className = 'btn-action btn-show';
+        btn.textContent = '解答を表示 (Space)';
+        btn.onclick = revealQAAnswer;
+        actions.appendChild(btn);
+      } else if (state === 'cloze_answer' || state === 'qa_answer') {
+        const btnUnk = document.createElement('button');
+        btnUnk.className = 'btn-action btn-unknown';
+        btnUnk.textContent = '知らなかった (1)';
+        btnUnk.onclick = () => handleAnswer(false);
+
+        const btnKn = document.createElement('button');
+        btnKn.className = 'btn-action btn-known';
+        btnKn.textContent = '知ってた (2)';
+        btnKn.onclick = () => handleAnswer(true);
+
+        actions.appendChild(btnUnk);
+        actions.appendChild(btnKn);
+      }
+    }
+
+    // ── SM-2 Core & Sync ─────────────────────────────────────────────────────
+    function handleAnswer(known) {
+      const card = cardQueue[cardIndex];
+
+      // リトライセッション中でない場合のみ、進捗を保存
+      if (!isReviewSession) {
+        if (!known) {
+          sessionErrors.add(card);
+          sessionStats.unknown++;
+        } else {
+          sessionStats.known++;
+        }
+
+        const prog = allProgress[card.id] || {
+          status: 'new',
+          ease_factor: 2.5,
+          interval_days: 0,
+          repetitions: 0
+        };
+
+        let newStatus = prog.status;
+        let newEase = prog.ease_factor;
+        let newInterval = prog.interval_days;
+        let newReps = prog.repetitions;
+
+        if (!known) {
+          // 知らなかった (Again)
+          newStatus = 'red';
+          newInterval = 1;
+          newReps = 0;
+          newEase = Math.max(1.3, newEase - 0.54);
+        } else {
+          // 知ってた (Good)
+          newStatus = 'active';
+          newReps++;
+          if (newReps === 1) {
+            newInterval = 1;
+          } else if (newReps === 2) {
+            newInterval = 6;
+          } else {
+            newInterval = Math.round(newInterval * newEase);
+          }
+        }
+
+        const todayStr = new Date().toISOString().split('T')[0];
+        const nextReviewDate = new Date();
+        nextReviewDate.setDate(nextReviewDate.getDate() + newInterval);
+        const nextReviewStr = nextReviewDate.toISOString().split('T')[0];
+
+        // キャッシュ状態更新
+        const updatedProg = {
+          word_key: card.id,
+          user_id: currentUser.id,
+          book_key: BOOK_KEY,
+          status: newStatus,
+          ease_factor: newEase,
+          interval_days: newInterval,
+          repetitions: newReps,
+          last_studied: todayStr,
+          next_review: nextReviewStr
+        };
+
+        allProgress[card.id] = updatedProg;
+
+        // 1. Local Storage に進捗を保存
+        const pending = JSON.parse(localStorage.getItem(PENDING_KEY) || '{}');
+        pending[card.id] = updatedProg;
+        localStorage.setItem(PENDING_KEY, JSON.stringify(pending));
+
+        // 2. Review Log の記録
+        const reviewLogEntry = {
+          user_id: currentUser.id,
+          book_key: BOOK_KEY,
+          word_key: card.id,
+          rating: known ? 4 : 1, // 4=Good, 1=Again
+          ease_factor: newEase,
+          interval_days: newInterval,
+          repetitions: newReps,
+          created_at: new Date().toISOString()
+        };
+        
+        const logPending = JSON.parse(localStorage.getItem(REVIEW_LOG_KEY) || '[]');
+        logPending.push(reviewLogEntry);
+        localStorage.setItem(REVIEW_LOG_KEY, JSON.stringify(logPending));
+
+        // 3. バックグラウンド同期実行
+        flushPending();
+      }
+
+      // Update session_done flag and synced sessionClearedIds
+      card.session_done = known;
+      if (known) {
+        sessionClearedIds.add(card.id);
+      } else {
+        sessionClearedIds.delete(card.id);
+      }
+
+      // Auto-clear completed sections from activeSections list
+      activeSections = activeSections.filter(secKey => {
+        const [ch, sub, sec] = secKey.split('::');
+        // Check if there are still unfinished cards belonging to this section in the queue
+        const hasUnfinished = cardQueue.some(c => 
+          c.chapter === ch && c.sub_chapter === sub && c.section === sec && !c.session_done
+        );
+        return hasUnfinished;
+      });
+
+      // 次のカードへ (Queue does NOT change dynamically anymore)
+      cardIndex++;
+      saveSessionState();
+      renderCard();
+    }
+
+    function finishSession() {
+      // Find cards not marked as done in the current round
+      const retryCards = cardQueue.filter(c => !c.session_done);
+      
+      showView('doneView');
+      const doneTitle = document.getElementById('doneTitle');
+      const doneStats = document.getElementById('doneStats');
+      const doneMessage = document.getElementById('doneMessage');
+      const restartBtn = document.getElementById('restartTodayBtn');
+
+      if (retryCards.length > 0) {
+        // Retry round needed
+        doneTitle.textContent = '✅ セッション完了';
+        
+        const knownCount = cardQueue.filter(c => c.session_done).length;
+        const unknownCount = retryCards.length;
+        doneStats.textContent = `知ってた: ${knownCount}枚 / 知らなかった: ${unknownCount}枚`;
+        doneMessage.textContent = '🔁 知らなかったカードを自動で復習します…';
+        restartBtn.classList.add('hidden');
+
+        // Setup the next loop round
+        isReviewSession = true;
+        cardQueue = retryCards;
+        cardIndex = 0;
+        
+        // Reset session_done flags on the retried cards for the next round
+        cardQueue.forEach(c => c.session_done = false);
+        
+        saveSessionState(); // Save state of the new retry round
+
+        setTimeout(() => {
+          showView('studyView');
+          renderCard();
+        }, 1500);
+      } else {
+        // Complete session successfully (all green)
+        doneTitle.textContent = '🎉 今日の学習完了！';
+        doneStats.textContent = `本日の学習カード ${cardQueue.length}枚をすべてクリアしました！`;
+        doneMessage.textContent = '本日の暗記カード学習はすべて完了しました。お疲れ様でした！';
+        
+        restartBtn.textContent = 'もう一度学習する';
+        restartBtn.classList.remove('hidden');
+        restartBtn.onclick = () => {
+          clearSessionState();
+          startSession();
+        };
+
+        // Cleanup session state upon successful completion
+        isReviewSession = false;
+        activeSections = [];
+        clearSessionState();
+        
+        // Sync logs
+        flushPending();
+      }
+    }
+
+    async function flushPending() {
+      if (!currentUser || isSyncing) return;
+
+      const pending = JSON.parse(localStorage.getItem(PENDING_KEY) || '{}');
+      const progressEntries = Object.values(pending);
+
+      const logPending = JSON.parse(localStorage.getItem(REVIEW_LOG_KEY) || '[]');
+      const logEntries = [...logPending];
+
+      if (progressEntries.length === 0 && logEntries.length === 0) return;
+
+      isSyncing = true;
+
+      // 同期: progress_sync
+      const succeededKeys = [];
+      try {
+        for (const payload of progressEntries) {
+          const { error } = await sb.from('progress_sync').upsert(
+            payload, { onConflict: 'user_id,book_key,word_key' }
+          );
+          if (error) throw error;
+          succeededKeys.push(payload.word_key);
+        }
+      } catch (e) {
+        console.warn('[flushPending] progress_sync sync failure:', e);
+      } finally {
+        if (succeededKeys.length > 0) {
+          const currentPending = JSON.parse(localStorage.getItem(PENDING_KEY) || '{}');
+          for (const k of succeededKeys) {
+            const sent = progressEntries.find(p => p.word_key === k);
+            const cur = currentPending[k];
+            // 送信中にさらに新しい回答があれば消さずに残す
+            if (cur && sent && cur.last_studied !== sent.last_studied) continue;
+            delete currentPending[k];
+          }
+          if (Object.keys(currentPending).length === 0) {
+            localStorage.removeItem(PENDING_KEY);
+          } else {
+            localStorage.setItem(PENDING_KEY, JSON.stringify(currentPending));
+          }
+        }
+      }
+
+      // 同期: review_log
+      try {
+        let succeededCount = 0;
+        for (let i = 0; i < logEntries.length; i++) {
+          const { error } = await sb.from('review_log').insert(logEntries[i]);
+          if (error) {
+            console.warn('[flushPending] review_log insert error:', error);
+            break;
+          }
+          succeededCount++;
+        }
+        const currentLogs = JSON.parse(localStorage.getItem(REVIEW_LOG_KEY) || '[]');
+        const remainingLogs = currentLogs.slice(succeededCount);
+        if (remainingLogs.length === 0) {
+          localStorage.removeItem(REVIEW_LOG_KEY);
+        } else {
+          localStorage.setItem(REVIEW_LOG_KEY, JSON.stringify(remainingLogs));
+        }
+      } catch (e) {
+        console.warn('[flushPending] review_log unexpected error:', e);
+      }
+
+      isSyncing = false;
+      
+      const remainingProgress = JSON.parse(localStorage.getItem(PENDING_KEY) || '{}');
+      const remainingLogs = JSON.parse(localStorage.getItem(REVIEW_LOG_KEY) || '[]');
+      if (Object.keys(remainingProgress).length > 0 || remainingLogs.length > 0) {
+        // まだ残っていれば即座に再試行
+        setTimeout(flushPending, 5000);
+      }
+    }
+
+    // ── UI Utilities ─────────────────────────────────────────────────────────
+    function showView(viewId) {
+      const views = ['loadingView', 'loginView', 'studyView', 'progressView', 'doneView'];
+      views.forEach(id => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        if (id === viewId) el.classList.remove('hidden');
+        else el.classList.add('hidden');
+      });
+
+      // ログイン前やロード中はタブバーを隠す
+      const tabBar = document.getElementById('tabBar');
+      if (tabBar) {
+        if (viewId === 'loadingView' || viewId === 'loginView') {
+          tabBar.classList.add('hidden');
+        } else {
+          tabBar.classList.remove('hidden');
+        }
+      }
+
+      // cardタブのサブビュー（studyView or doneView）が切り替わった場合、状態を保存
+      if (viewId === 'studyView' || viewId === 'doneView') {
+        currentSubView = viewId;
+      }
+    }
+
+    function switchTab(tabName) {
+      currentTab = tabName;
+      
+      // タブボタンのアクティブクラス切り替え
+      document.querySelectorAll('.tab').forEach(t => {
+        t.classList.toggle('active', t.dataset.tab === tabName);
+      });
+      
+      if (tabName === 'card') {
+        showView(currentSubView);
+        if (currentSubView === 'studyView') {
+          renderCard();
+        }
+      } else if (tabName === 'progress') {
+        renderProgress();
+        showView('progressView');
+      }
+    }
+
+    // 章 ➡️ チャプター ➡️ セクション のツリー構造を動的に生成
+    function buildTocTree() {
+      const tree = [];
+      
+      cardsData.forEach(card => {
+        const chName = card.chapter || 'その他の章';
+        const subName = card.sub_chapter || 'その他のチャプター';
+        const secName = card.section || 'その他のセクション';
+        
+        let ch = tree.find(c => c.name === chName);
+        if (!ch) {
+          ch = { name: chName, subChapters: [] };
+          tree.push(ch);
+        }
+        
+        let sub = ch.subChapters.find(s => s.name === subName);
+        if (!sub) {
+          sub = { name: subName, sections: [] };
+          ch.subChapters.push(sub);
+        }
+        
+        let sec = sub.sections.find(s => s.name === secName);
+        if (!sec) {
+          sec = { name: secName, cards: [] };
+          sub.sections.push(sec);
+        }
+        
+        sec.cards.push(card);
+      });
+      
+      return tree;
+    }
+
+    // 進捗タブの描画処理
+    function renderProgress() {
+      const progressView = document.getElementById('progressView');
+      if (!progressView) return;
+      
+      progressView.innerHTML = '';
+      
+      // 1. TOC (目次ツリー) のコンテナ
+      const tocContainer = document.createElement('div');
+      tocContainer.className = 'toc-container';
+      
+      const tocTitle = document.createElement('div');
+      tocTitle.className = 'toc-title';
+      tocTitle.textContent = '目次 & セクション進捗';
+      tocContainer.appendChild(tocTitle);
+      
+      // 2. 詳細カードリストのコンテナ
+      const detailsContainer = document.createElement('div');
+      detailsContainer.className = 'details-container';
+      
+      const detailsTitle = document.createElement('div');
+      detailsTitle.className = 'details-title';
+      detailsTitle.textContent = 'カード一覧';
+      detailsContainer.appendChild(detailsTitle);
+
+      const tree = buildTocTree();
+      
+      tree.forEach(ch => {
+        // --- TOC 描画 ---
+        const chDiv = document.createElement('div');
+        chDiv.className = 'toc-chapter';
+        
+        const chTitle = document.createElement('div');
+        chTitle.className = 'toc-chapter-title';
+        chTitle.textContent = ch.name;
+        chDiv.appendChild(chTitle);
+        
+        ch.subChapters.forEach(sub => {
+          const subDiv = document.createElement('div');
+          subDiv.className = 'toc-subchapter';
+          
+          const subTitle = document.createElement('div');
+          subTitle.className = 'toc-subchapter-title';
+          subTitle.textContent = sub.name;
+          subDiv.appendChild(subTitle);
+          
+          const secList = document.createElement('div');
+          secList.className = 'toc-section-list';
+          
+          sub.sections.forEach(sec => {
+            // このセクションの active カード数（Good数）を集計
+            let activeCount = 0;
+            sec.cards.forEach(card => {
+              const prog = allProgress[card.id];
+              if (prog && prog.status === 'active') {
+                activeCount++;
+              }
+            });
+            const totalCount = sec.cards.length;
+            const pct = totalCount > 0 ? Math.round((activeCount / totalCount) * 100) : 0;
+            
+            // TOCアイテム
+            const secItem = document.createElement('div');
+            secItem.className = 'toc-section-item';
+            
+            // ジャンプ用のリンク
+            const secLink = document.createElement('a');
+            secLink.className = 'toc-section-link';
+            secLink.textContent = sec.name;
+            const targetGroupId = `group-${ch.name}-${sub.name}-${sec.name}`.replace(/\s+/g, '-');
+            secLink.onclick = (e) => {
+              e.preventDefault();
+              const targetEl = document.getElementById(targetGroupId);
+              if (targetEl) {
+                targetEl.scrollIntoView({ behavior: 'smooth' });
+              }
+            };
+            secItem.appendChild(secLink);
+            
+            // 右側のメーターと臨時学習ボタン
+            const rightDiv = document.createElement('div');
+            rightDiv.className = 'toc-section-right';
+            
+            const progressBox = document.createElement('div');
+            progressBox.className = 'toc-progress-box';
+            
+            const pBar = document.createElement('div');
+            pBar.className = 'toc-progress-bar';
+            const pFill = document.createElement('div');
+            pFill.className = 'toc-progress-fill';
+            pFill.style.width = `${pct}%`;
+            pBar.appendChild(pFill);
+            
+            const pPct = document.createElement('div');
+            pPct.className = 'toc-progress-pct';
+            pPct.textContent = `${pct}%`;
+            
+            progressBox.appendChild(pBar);
+            progressBox.appendChild(pPct);
+            rightDiv.appendChild(progressBox);
+            
+            // 臨時学習ボタン (Toggle effect)
+            const secKey = `${ch.name}::${sub.name}::${sec.name}`;
+            const isQueued = activeSections.includes(secKey);
+            
+            // Check if any card belonging to this section has been answered or is currently being studied
+            const targetCardIds = sec.cards.map(c => c.id);
+            const hasStudiedHistory = cardQueue.slice(0, cardIndex).some(c => targetCardIds.includes(c.id));
+            const isCurrentlyStudying = cardIndex < cardQueue.length && targetCardIds.includes(cardQueue[cardIndex].id);
+            const hasStudied = hasStudiedHistory || isCurrentlyStudying;
+
+            const studyBtn = document.createElement('button');
+            studyBtn.className = 'btn-study-section';
+            
+            if (!isQueued) {
+              // State 1: OFF (Can Enqueue)
+              studyBtn.textContent = 'この節を学習';
+              studyBtn.classList.remove('queued', 'studying');
+              studyBtn.disabled = false;
+              studyBtn.onclick = () => enqueueSection(ch.name, sub.name, sec.name);
+            } else if (!hasStudied) {
+              // State 2: ON (Can Dequeue/Cancel)
+              studyBtn.textContent = '✓ キュー済 (取消)';
+              studyBtn.classList.add('queued');
+              studyBtn.classList.remove('studying');
+              studyBtn.disabled = false;
+              studyBtn.onclick = () => dequeueSection(ch.name, sub.name, sec.name);
+            } else {
+              // State 3: STUDYING (Locked)
+              studyBtn.textContent = '学習中...';
+              studyBtn.classList.add('studying');
+              studyBtn.classList.remove('queued');
+              studyBtn.disabled = true;
+            }
+            rightDiv.appendChild(studyBtn);
+            
+            secItem.appendChild(rightDiv);
+            secList.appendChild(secItem);
+            
+            // --- 詳細カードリスト描画 ---
+            const groupDiv = document.createElement('div');
+            groupDiv.id = targetGroupId;
+            groupDiv.className = 'details-section-group';
+            
+            const groupTitle = document.createElement('div');
+            groupTitle.className = 'details-section-title';
+            groupTitle.textContent = `${ch.name} ＞ ${sub.name} ＞ ${sec.name}`;
+            groupDiv.appendChild(groupTitle);
+            
+            const cardListDiv = document.createElement('div');
+            cardListDiv.className = 'card-list';
+            
+            sec.cards.forEach(card => {
+              const cardItem = document.createElement('div');
+              cardItem.className = 'card-item';
+              
+              const itemLeft = document.createElement('div');
+              itemLeft.className = 'card-item-left';
+              
+              const dot = document.createElement('div');
+              const prog = allProgress[card.id];
+              const status = prog ? prog.status : 'new';
+              dot.className = `status-dot ${status}`;
+              
+              const itemTitle = document.createElement('div');
+              itemTitle.className = 'card-item-title';
+              itemTitle.textContent = card.title;
+              
+              itemLeft.appendChild(dot);
+              itemLeft.appendChild(itemTitle);
+              cardItem.appendChild(itemLeft);
+              
+              const itemPage = document.createElement('div');
+              itemPage.className = 'card-item-page';
+              itemPage.textContent = `p.${card.page}`;
+              cardItem.appendChild(itemPage);
+              
+              cardListDiv.appendChild(cardItem);
+            });
+            
+            groupDiv.appendChild(cardListDiv);
+            detailsContainer.appendChild(groupDiv);
+          });
+          
+          subDiv.appendChild(secList);
+          chDiv.appendChild(subDiv);
+        });
+        
+        tocContainer.appendChild(chDiv);
+      });
+      
+      progressView.appendChild(tocContainer);
+      progressView.appendChild(detailsContainer);
+    }
+
+    // Enqueue cards of a section to the tail of the study queue
+    function enqueueSection(chapterName, subChapterName, sectionName) {
+      const secKey = `${chapterName}::${subChapterName}::${sectionName}`;
+      if (activeSections.includes(secKey)) return;
+
+      const targetCards = cardsData.filter(card => 
+        card.chapter === chapterName &&
+        card.sub_chapter === subChapterName &&
+        card.section === sectionName
+      );
+      
+      if (targetCards.length === 0) {
+        showToast('このセクションにはカードがありません。');
+        return;
+      }
+      
+      const existingIds = new Set(cardQueue.map(c => c.id));
+      const toAdd = targetCards.filter(c => !existingIds.has(c.id));
+      
+      toAdd.forEach(c => c.session_done = false); // Initialize
+      cardQueue.push(...toAdd);
+      activeSections.push(secKey);
+      saveSessionState();
+      
+      showToast(`${sectionName} を学習キューに追加しました（+${toAdd.length}枚）`);
+      renderProgress(); // Refresh button states
+    }
+
+    // Dequeue cards of a section (only allowed if not started yet)
+    function dequeueSection(chapterName, subChapterName, sectionName) {
+      const secKey = `${chapterName}::${subChapterName}::${sectionName}`;
+      if (!activeSections.includes(secKey)) return;
+
+      // Remove the cards belonging to this section from the queue
+      cardQueue = cardQueue.filter(c => 
+        !(c.chapter === chapterName && c.sub_chapter === subChapterName && c.section === sectionName)
+      );
+      activeSections = activeSections.filter(k => k !== secKey);
+      saveSessionState();
+
+      showToast(`${sectionName} を学習キューから削除しました。`);
+      renderProgress(); // Refresh button states
+    }
+
+    function showToast(msg) {
+      const t = document.getElementById('toast');
+      t.textContent = msg;
+      t.classList.remove('hidden');
+      setTimeout(() => t.classList.add('hidden'), 3000);
+    }
+
+    function handleKeyboardShortcuts(e) {
+      // 学習画面が表示されているときのみ反応
+      const studyView = document.getElementById('studyView');
+      if (studyView.classList.contains('hidden')) return;
+
+      const actions = document.getElementById('stageActions');
+      const firstBtn = actions.querySelector('button');
+      if (!firstBtn) return;
+
+      if (e.code === 'Space') {
+        e.preventDefault();
+        // 「解答/正解を表示」のアクションを実行
+        if (firstBtn.classList.contains('btn-show')) {
+          firstBtn.click();
+        }
+      } else if (e.key === '1') {
+        const unkBtn = actions.querySelector('.btn-unknown');
+        if (unkBtn) unkBtn.click();
+      } else if (e.key === '2') {
+        const knBtn = actions.querySelector('.btn-known');
+        if (knBtn) knBtn.click();
+      }
+    }
+  </script>
+</body>
+</html>
